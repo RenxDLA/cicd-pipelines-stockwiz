@@ -3,9 +3,9 @@ name: Build & Deploy Microservices
 on:
   push:
     branches:
-      - dev
+      - develop
       - test
-      - prod
+      - main
   workflow_dispatch:
 
 env:
