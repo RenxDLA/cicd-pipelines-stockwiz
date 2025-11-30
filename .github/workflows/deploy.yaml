@@ -73,7 +73,7 @@ jobs:
         run: |
           aws ecs update-service \
             --cluster ${ECS_CLUSTER} \
-            --service ${SERVICE_PRODUCT_NAME}-${ENVIRONMENT} \
+            --service "${SERVICE_PRODUCT_NAME}-${ENVIRONMENT}" \
             --force-new-deployment \
             --region $AWS_REGION
 
@@ -101,7 +101,7 @@ jobs:
         run: |
           aws ecs update-service \
             --cluster ${ECS_CLUSTER} \
-            --service ${SERVICE_INVENTORY_NAME}-${ENVIRONMENT} \
+            --service "${SERVICE_INVENTORY_NAME}-${ENVIRONMENT}" \
             --force-new-deployment \
             --region $AWS_REGION
 
@@ -129,7 +129,7 @@ jobs:
         run: |
           aws ecs update-service \
             --cluster ${ECS_CLUSTER} \
-            --service ${SERVICE_API_GATEWAY_NAME}-${ENVIRONMENT} \
+            --service "${SERVICE_API_GATEWAY_NAME}-${ENVIRONMENT}" \
             --force-new-deployment \
             --region $AWS_REGION
 
