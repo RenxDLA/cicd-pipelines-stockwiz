@@ -6,6 +6,7 @@ on:
       - dev
       - test
       - prod
+  workflow_dispatch:
 
 env:
   AWS_REGION: us-east-1
@@ -131,3 +132,6 @@ jobs:
             --service ${SERVICE_API_GATEWAY_NAME}-${ENVIRONMENT} \
             --force-new-deployment \
             --region $AWS_REGION
+
+      - name: Deployment Complete
+        run: echo "Deployment to ${ENVIRONMENT} environment completed successfully."
