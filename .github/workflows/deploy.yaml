@@ -71,7 +71,7 @@ jobs:
 
       - name: Update ECS Service (product)
         run: |
-          SERVICE_NAME=$(echo "${SERVICE_PRODUCT_NAME}"| tr -d '\r\n')-${ENVIRONMENT}
+          SERVICE_NAME=$(echo "${{ vars.SERVICE_PRODUCT_NAME }}"| tr -d '\r\n')-${ENVIRONMENT}
           echo "Updating ECS Service: ${SERVICE_NAME}"
           aws ecs update-service \
             --cluster ${ECS_CLUSTER} \
@@ -101,7 +101,7 @@ jobs:
 
       - name: Update ECS Service (inventory)
         run: |
-          SERVICE_NAME=$(echo "${SERVICE_INVENTORY_NAME}"| tr -d '\r\n')-${ENVIRONMENT}
+          SERVICE_NAME=$(echo "${{ vars.SERVICE_INVENTORY_NAME }}"| tr -d '\r\n')-${ENVIRONMENT}
           echo "Updating ECS Service: ${SERVICE_NAME}"
           aws ecs update-service \
             --cluster ${ECS_CLUSTER} \
@@ -131,7 +131,7 @@ jobs:
 
       - name: Update ECS Service (api_gateway)
         run: |
-          SERVICE_NAME=$(echo "${SERVICE_API_GATEWAY_NAME}"| tr -d '\r\n')-${ENVIRONMENT}
+          SERVICE_NAME=$(echo "${{ vars.SERVICE_API_GATEWAY_NAME }}"| tr -d '\r\n')-${ENVIRONMENT}
           echo "Updating ECS Service: ${SERVICE_NAME}"
           aws ecs update-service \
             --cluster ${ECS_CLUSTER} \
