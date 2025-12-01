@@ -53,16 +53,22 @@ jobs:
       ########################################################################
       # SONARCLOUD CODE ANALYSIS (Simplified)
       ########################################################################
+      - name: Set SonarCloud vars
+        run: |
+          echo "SONAR_ORG_LOWER=$(echo '${{ secrets.SONAR_ORGANIZATION }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
+
       - name: SonarCloud Scan
         uses: SonarSource/sonarcloud-github-action@master
         env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         with:
           args: >
-            -Dsonar.organization=${{ secrets.SONAR_ORGANIZATION }}
-            -Dsonar.projectKey=${{ secrets.SONAR_ORGANIZATION }}_stockwiz
+            -Dsonar.organization=${{ env.SONAR_ORG_LOWER }}
+            -Dsonar.projectKey=${{ secrets.SONAR_ORGANIZATION }}_cicd-pipelines-stockwiz
             -Dsonar.sources=.
             -Dsonar.exclusions=**/*_test.go,**/vendor/**,**/node_modules/**,**/*.pb.go
+            -Dsonar.projectName=StockWiz
 
       ########################################################################
       # BUILD + PUSH PRODUCT SERVICE
