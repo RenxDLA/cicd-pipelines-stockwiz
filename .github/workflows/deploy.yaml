@@ -51,6 +51,20 @@ jobs:
         uses: aws-actions/amazon-ecr-login@v2
 
       ########################################################################
+      # SONARCLOUD CODE ANALYSIS (Simplified)
+      ########################################################################
+      - name: SonarCloud Scan
+        uses: SonarSource/sonarcloud-github-action@master
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        with:
+          args: >
+            -Dsonar.organization=${{ secrets.SONAR_ORGANIZATION }}
+            -Dsonar.projectKey=${{ secrets.SONAR_ORGANIZATION }}_stockwiz
+            -Dsonar.sources=.
+            -Dsonar.exclusions=**/*_test.go,**/vendor/**,**/node_modules/**,**/*.pb.go
+
+      ########################################################################
       # BUILD + PUSH PRODUCT SERVICE
       ########################################################################
       - name: Build & Push product_service
