@@ -29,6 +29,9 @@ jobs:
       - name: Checkout CI/CD Repo
         uses: actions/checkout@v4
 
+      - name: Create results directory
+        run: mkdir -p ${{ github.workspace }}/results && chmod 777 ${{ github.workspace }}/results
+
       - name: Set environment variables
         run: |
           if [[ "${GITHUB_REF##*/}" == "develop" ]]; then
@@ -46,14 +49,15 @@ jobs:
         run: |
           docker run --rm -i \
             -e SERVICE_URL=${{ env.SERVICE_URL }} \
-            -v ${{ github.workspace }}:/workspace \
-            grafana/k6 run /workspace/tests/k6/load-test.js \
-            --out json=/workspace/k6-results.json
+            -v ${{ github.workspace }}/tests/k6:/scripts \
+            -v ${{ github.workspace }}/results:/results \
+            grafana/k6 run /scripts/load-test.js \
+            --out json=/results/k6-results.json
 
       - name: Upload k6 results
         uses: actions/upload-artifact@v4
         if: always()
         with:
           name: k6-results-${{ env.ENVIRONMENT }}
-          path: k6-results.json
+          path: results/k6-results.json
           retention-days: 30
