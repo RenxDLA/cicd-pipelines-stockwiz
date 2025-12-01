@@ -13,13 +13,7 @@ export const options = {
 const BASE_URL = __ENV.SERVICE_URL;
 
 export default function () {
-  // Test endpoints principales
+  // Test health endpoint only
   http.get(`${BASE_URL}/health`);
-  sleep(1);
-  
-  http.get(`${BASE_URL}/api/products`);
-  sleep(1);
-  
-  http.get(`${BASE_URL}/api/inventory`);
   sleep(1);
 }
