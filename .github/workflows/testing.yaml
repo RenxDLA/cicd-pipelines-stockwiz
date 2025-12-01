@@ -1,21 +1,29 @@
 name: Post-Deployment Tests
 
-# Se ejecuta luego de que se sube una imagen y se despliega en ECS
+# Se ejecuta después del deploy en las mismas ramas
 on:
-  workflow_run:
-    workflows: ["Build & Deploy Microservices"]
-    types:
-      - completed
+  push:
+    branches:
+      - develop
+      - test
+      - main
   workflow_dispatch:
 
 env:
   AWS_REGION: us-east-1
 
 jobs:
+  wait-for-deployment:
+    name: Wait for ECS deployment
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wait for services to stabilize
+        run: sleep 120
+
   k6-load-tests:
     name: k6 Load & Performance Tests
     runs-on: ubuntu-latest
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    needs: wait-for-deployment
     
     steps:
       - name: Checkout CI/CD Repo
