@@ -1,0 +1,145 @@
+name: Build & Deploy Microservices
+
+on:
+  push:
+    branches:
+      - develop
+      - test
+      - main
+  workflow_dispatch:
+
+env:
+  AWS_REGION: us-east-1
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout CI/CD Repo
+        uses: actions/checkout@v6
+
+      - name: Checkout repo StockWiz
+        uses: actions/checkout@v6
+        with:
+          repository: ORT-ATI-CertificadoDevOps/StockWiz
+
+      # Configurar las variables de entorno según la rama
+      - name: Set variables
+        run: |
+          if [[ "${GITHUB_REF##*/}" == "develop" ]]; then
+            echo "ENVIRONMENT=dev" >> $GITHUB_ENV
+            echo "ECS_CLUSTER=${{ vars.ECS_CLUSTER_STREAM }}" >> $GITHUB_ENV
+          elif [[ "${GITHUB_REF##*/}" == "test" ]]; then
+            echo "ENVIRONMENT=test" >> $GITHUB_ENV
+            echo "ECS_CLUSTER=${{ vars.ECS_CLUSTER_STREAM }}" >> $GITHUB_ENV
+          elif [[ "${GITHUB_REF##*/}" == "main" ]]; then
+            echo "ENVIRONMENT=prod" >> $GITHUB_ENV
+            echo "ECS_CLUSTER=${{ vars.ECS_CLUSTER_MAIN }}" >> $GITHUB_ENV
+          fi
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      ########################################################################
+      # SONARCLOUD CODE ANALYSIS (Simplified)
+      ########################################################################
+      - name: Set SonarCloud vars
+        run: |
+          echo "SONAR_ORG_LOWER=$(echo '${{ secrets.SONAR_ORGANIZATION }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
+
+      - name: SonarCloud Scan
+        uses: SonarSource/sonarqube-scan-action@v6
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        with:
+          args: >
+            -Dsonar.organization=${{ env.SONAR_ORG_LOWER }}
+            -Dsonar.projectKey=${{ secrets.SONAR_ORGANIZATION }}_cicd-pipelines-stockwiz
+            -Dsonar.sources=.
+            -Dsonar.exclusions=**/*_test.go,**/vendor/**,**/node_modules/**,**/*.pb.go
+            -Dsonar.projectName=StockWiz
+
+      ########################################################################
+      # BUILD + PUSH PRODUCT SERVICE
+      ########################################################################
+      - name: Build & Push product_service
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: ${{ vars.ECR_REPO }}
+          SERVICE_PRODUCT_NAME: ${{ vars.SERVICE_PRODUCT_NAME }}
+        run: |
+          IMAGE_TAG=product-service-${ENVIRONMENT}
+
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG ./product-service
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+
+          docker tag \
+            $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG \
+            $ECR_REGISTRY/$ECR_REPOSITORY:product-service-${ENVIRONMENT}-latest
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:product-service-${ENVIRONMENT}-latest
+
+      # ########################################################################
+      # # BUILD + PUSH INVENTORY SERVICE
+      # ########################################################################
+      - name: Build & Push inventory_service
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: ${{ vars.ECR_REPO }}
+        run: |
+          IMAGE_TAG=inventory-service-${ENVIRONMENT}
+
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG ./inventory-service
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+
+          docker tag \
+            $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG \
+            $ECR_REGISTRY/$ECR_REPOSITORY:inventory-service-${ENVIRONMENT}-latest
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:inventory-service-${ENVIRONMENT}-latest
+
+
+      # ########################################################################
+      # # BUILD + PUSH API GATEWAY
+      # ########################################################################
+      - name: Build & Push api_gateway_service
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: ${{ vars.ECR_REPO }}
+        run: |
+          IMAGE_TAG=api-service-${ENVIRONMENT}
+
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG ./api-gateway
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+
+          docker tag \
+            $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG \
+            $ECR_REGISTRY/$ECR_REPOSITORY:api-service-${ENVIRONMENT}-latest
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:api-service-${ENVIRONMENT}-latest
+
+      # ########################################################################
+      # UPDATE ECS SERVICE (Only API Gateway - contains all 3 containers)
+      # ########################################################################
+      - name: Update ECS Service (API Gateway with sidecar containers)
+        env:
+          SERVICE_API_GATEWAY_NAME: ${{ vars.SERVICE_API_GATEWAY_NAME }}
+        run: |
+          SERVICE_NAME=$(echo "${SERVICE_API_GATEWAY_NAME}"| tr -d '\r\n')-${ENVIRONMENT}
+          echo "Updating ECS Service: ${SERVICE_NAME} (includes product, inventory, and api-gateway containers)"
+          aws ecs update-service \
+            --cluster ${ECS_CLUSTER} \
+            --service "${SERVICE_NAME}" \
+            --force-new-deployment \
+            --region $AWS_REGION
+
+      - name: Deployment Complete
+        run: echo "Deployment to ${ENVIRONMENT} environment completed successfully."

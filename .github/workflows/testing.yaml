@@ -1,0 +1,63 @@
+name: Post-Deployment Tests
+
+# Se ejecuta después del deploy en las mismas ramas
+on:
+  push:
+    branches:
+      - develop
+      - test
+      - main
+  workflow_dispatch:
+
+env:
+  AWS_REGION: us-east-1
+
+jobs:
+  wait-for-deployment:
+    name: Wait for ECS deployment
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wait for services to stabilize
+        run: sleep 300  # Wait 5 minutes for the deployment to stabilize
+
+  k6-load-tests:
+    name: k6 Tests
+    runs-on: ubuntu-latest
+    needs: wait-for-deployment
+    
+    steps:
+      - name: Checkout CI/CD Repo
+        uses: actions/checkout@v4
+
+      - name: Create results directory
+        run: mkdir -p ${{ github.workspace }}/results && chmod 777 ${{ github.workspace }}/results
+
+      - name: Set environment variables
+        run: |
+          if [[ "${GITHUB_REF##*/}" == "develop" ]]; then
+            echo "ENVIRONMENT=dev" >> $GITHUB_ENV
+            echo "SERVICE_URL=${{ secrets.SERVICE_URL_DEV }}" >> $GITHUB_ENV
+          elif [[ "${GITHUB_REF##*/}" == "test" ]]; then
+            echo "ENVIRONMENT=test" >> $GITHUB_ENV
+            echo "SERVICE_URL=${{ secrets.SERVICE_URL_TEST }}" >> $GITHUB_ENV
+          elif [[ "${GITHUB_REF##*/}" == "main" ]]; then
+            echo "ENVIRONMENT=prod" >> $GITHUB_ENV
+            echo "SERVICE_URL=${{ secrets.SERVICE_URL_PROD }}" >> $GITHUB_ENV
+          fi
+
+      - name: Run k6 load tests
+        run: |
+          docker run --rm -i \
+            -e SERVICE_URL=${{ env.SERVICE_URL }} \
+            -v ${{ github.workspace }}/tests/k6:/scripts \
+            -v ${{ github.workspace }}/results:/results \
+            grafana/k6 run /scripts/load-test.js \
+            --out json=/results/k6-results.json
+
+      - name: Upload k6 results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: k6-results-${{ env.ENVIRONMENT }}
+          path: results/k6-results.json
+          retention-days: 30
